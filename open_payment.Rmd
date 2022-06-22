@@ -1,0 +1,310 @@
+---
+title: "open_payments"
+author: "Peter Higgins"
+date: "6/22/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(here)
+library(data.table)
+library(knitr)
+```
+
+## Read physician data
+
+Read in the physician payment file and annual payment files from Open Payments.
+
+```{r read}
+phys_data <- read_csv("OP_PH_PRFL_SPLMTL_P01212022.csv")
+```
+
+## Filter down and sum the data for GI and Hep
+
+For 2014
+
+```{r 2014}
+data2014 <- fread(here("OP_DTL_GNRL_PGYR2014_P01212022.csv"))
+
+data2014_gi <- data2014[Covered_Recipient_Type == "Covered Recipient Physician" & Physician_Primary_Type == "Medical Doctor" & Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Gastroenterology", .(total_pmt = sum(Total_Amount_of_Payment_USDollars)), by = "Physician_Profile_ID"]
+
+data2014_gi_pmt <- data2014_gi[order(-total_pmt)] |>
+  tibble() |>
+  filter(total_pmt >100000) |>
+  left_join(x = _, y = phys_data) 
+
+data2014_gi_pmt_short <- data2014_gi_pmt %>% 
+  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
+  mutate(year = 2014)
+
+rm(data2014_gi)
+rm(data2014_gi_pmt)
+
+data2014_hep <- data2014[Covered_Recipient_Type == "Covered Recipient Physician" & Physician_Primary_Type == "Medical Doctor" & Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Hepatology", .(total_pmt = sum(Total_Amount_of_Payment_USDollars)), by = "Physician_Profile_ID"]
+
+data2014_hep_pmt <- data2014_hep[order(-total_pmt)] |>
+  tibble() |>
+  filter(total_pmt >100000) |>
+  left_join(x = _, y = phys_data)
+
+data2014_hep_pmt_short <- data2014_hep_pmt %>% 
+  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
+  mutate(year = 2014)
+
+rm(data2014_hep)
+rm(data2014_hep_pmt)
+rm(data2014)
+```
+
+For 2015
+
+```{r 2015}
+data2015 <- fread(here("OP_DTL_GNRL_PGYR2015_P01212022.csv"))
+
+data2015_gi <- data2015[Covered_Recipient_Type == "Covered Recipient Physician" & Physician_Primary_Type == "Medical Doctor" & Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Gastroenterology", .(total_pmt = sum(Total_Amount_of_Payment_USDollars)), by = "Physician_Profile_ID"]
+
+data2015_gi_pmt <- data2015_gi[order(-total_pmt)] |>
+  tibble() |>
+  filter(total_pmt >100000) |>
+  left_join(x = _, y = phys_data)
+
+data2015_gi_pmt_short <- data2015_gi_pmt %>% 
+  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
+  mutate(year = 2015)
+
+rm(data2015_gi)
+rm(data2015_gi_pmt)
+rm(data2015_gi)
+
+data2015_hep <- data2015[Covered_Recipient_Type == "Covered Recipient Physician" & Physician_Primary_Type == "Medical Doctor" & Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Hepatology", .(total_pmt = sum(Total_Amount_of_Payment_USDollars)), by = "Physician_Profile_ID"]
+
+data2015_hep_pmt <- data2015_hep[order(-total_pmt)] |>
+  tibble() |>
+  filter(total_pmt >100000) |>
+  left_join(x = _, y = phys_data)
+
+data2015_hep_pmt_short <- data2015_hep_pmt %>% 
+  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
+  mutate(year = 2015)
+
+rm(data2015_hep)
+rm(data2015_hep_pmt)
+rm(data2015_hep)
+
+rm(data2015)
+```
+
+For 2016
+
+```{r 2016}
+data2016 <- fread(here("OP_DTL_GNRL_PGYR2016_P01212022.csv"))
+
+data2016_gi <- data2016[Covered_Recipient_Type == "Covered Recipient Physician" & Physician_Primary_Type == "Medical Doctor" & Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Gastroenterology", .(total_pmt = sum(Total_Amount_of_Payment_USDollars)), by = "Physician_Profile_ID"]
+
+data2016_gi_pmt <- data2016_gi[order(-total_pmt)] |>
+  tibble() |>
+  filter(total_pmt >100000) |>
+  left_join(x = _, y = phys_data)
+
+data2016_gi_pmt_short <- data2016_gi_pmt %>% 
+  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
+  mutate(year = 2016)
+
+rm(data2016_gi)
+rm(data2016_gi_pmt)
+
+data2016_hep <- data2016[Covered_Recipient_Type == "Covered Recipient Physician" & Physician_Primary_Type == "Medical Doctor" & Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Hepatology", .(total_pmt = sum(Total_Amount_of_Payment_USDollars)), by = "Physician_Profile_ID"]
+
+data2016_hep_pmt <- data2016_hep[order(-total_pmt)] |>
+  tibble() |>
+  filter(total_pmt >100000) |>
+  left_join(x = _, y = phys_data)
+
+data2016_hep_pmt_short <- data2016_hep_pmt %>% 
+  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
+  mutate(year = 2016)
+
+rm(data2016_hep)
+rm(data2016_hep_pmt)
+rm(data2016)
+```
+
+ For 2017
+
+```{r 2017}
+data2017 <- fread(here("OP_DTL_GNRL_PGYR2017_P01212022.csv"))
+
+data2017_gi <- data2017[Covered_Recipient_Type == "Covered Recipient Physician" & Physician_Primary_Type == "Medical Doctor" & Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Gastroenterology", .(total_pmt = sum(Total_Amount_of_Payment_USDollars)), by = "Physician_Profile_ID"]
+
+data2017_gi_pmt <- data2017_gi[order(-total_pmt)] |>
+  tibble() |>
+  filter(total_pmt >100000) |>
+  left_join(x = _, y = phys_data)
+
+data2017_gi_pmt_short <- data2017_gi_pmt %>% 
+  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
+  mutate(year = 2017)
+
+rm(data2017_gi)
+rm(data2017_gi_pmt)
+
+data2017_hep <- data2017[Covered_Recipient_Type == "Covered Recipient Physician" & Physician_Primary_Type == "Medical Doctor" & Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Hepatology", .(total_pmt = sum(Total_Amount_of_Payment_USDollars)), by = "Physician_Profile_ID"]
+
+data2017_hep_pmt <- data2017_hep[order(-total_pmt)] |>
+  tibble() |>
+  filter(total_pmt >100000) |>
+  left_join(x = _, y = phys_data)
+
+data2017_hep_pmt_short <- data2017_hep_pmt %>% 
+  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
+  mutate(year = 2017)
+
+rm(data2017_hep)
+rm(data2017_hep_pmt)
+rm(data2017)
+```
+
+For 2018
+
+```{r 2018}
+data2018 <- fread(here("OP_DTL_GNRL_PGYR2018_P01212022.csv"))
+
+data2018_gi <- data2018[Covered_Recipient_Type == "Covered Recipient Physician" & Physician_Primary_Type == "Medical Doctor" & Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Gastroenterology", .(total_pmt = sum(Total_Amount_of_Payment_USDollars)), by = "Physician_Profile_ID"]
+
+data2018_gi_pmt <- data2018_gi[order(-total_pmt)] |>
+  tibble() |>
+  filter(total_pmt >100000) |>
+  left_join(x = _, y = phys_data)
+
+data2018_gi_pmt_short <- data2018_gi_pmt %>% 
+  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
+  mutate(year = 2018)
+
+rm(data2018_gi_pmt)
+rm(data2018_gi)
+
+data2018_hep <- data2018[Covered_Recipient_Type == "Covered Recipient Physician" & Physician_Primary_Type == "Medical Doctor" & Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Hepatology", .(total_pmt = sum(Total_Amount_of_Payment_USDollars)), by = "Physician_Profile_ID"]
+
+data2018_hep_pmt <- data2018_hep[order(-total_pmt)] |>
+  tibble() |>
+  filter(total_pmt >100000) |>
+  left_join(x = _, y = phys_data)
+
+data2018_hep_pmt_short <- data2018_hep_pmt %>% 
+  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
+  mutate(year = 2018)
+
+rm(data2018_hep_pmt)
+rm(data2018_hep)
+rm(data2018)
+```
+
+For 2019
+
+```{r 2019}
+data2019 <- fread(here("OP_DTL_GNRL_PGYR2019_P01212022.csv"))
+
+data2019_gi <- data2019[Covered_Recipient_Type == "Covered Recipient Physician" & Physician_Primary_Type == "Medical Doctor" & Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Gastroenterology", .(total_pmt = sum(Total_Amount_of_Payment_USDollars)), by = "Physician_Profile_ID"]
+
+data2019_gi_pmt <- data2019_gi[order(-total_pmt)] |>
+  tibble() |>
+  filter(total_pmt >100000) |>
+  left_join(x = _, y = phys_data)
+
+data2019_gi_pmt_short <- data2019_gi_pmt %>% 
+  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
+  mutate(year = 2019)
+
+rm(data2019_gi_pmt)
+rm(data2019_gi)
+
+data2019_hep <- data2019[Covered_Recipient_Type == "Covered Recipient Physician" & Physician_Primary_Type == "Medical Doctor" & Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Hepatology", .(total_pmt = sum(Total_Amount_of_Payment_USDollars)), by = "Physician_Profile_ID"]
+
+data2019_hep_pmt <- data2019_hep[order(-total_pmt)] |>
+  tibble() |>
+  filter(total_pmt >100000) |>
+  left_join(x = _, y = phys_data)
+
+data2019_hep_pmt_short <- data2019_hep_pmt %>% 
+  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
+  mutate(year = 2019)
+
+rm(data2019_hep_pmt)
+rm(data2019_hep)
+rm(data2019)
+```
+
+For 2020
+
+```{r 2020}
+data2020 <- fread(here("OP_DTL_GNRL_PGYR2020_P01212022.csv"))
+
+data2020_gi <- data2020[Covered_Recipient_Type == "Covered Recipient Physician" & Physician_Primary_Type == "Medical Doctor" & Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Gastroenterology", .(total_pmt = sum(Total_Amount_of_Payment_USDollars)), by = "Physician_Profile_ID"]
+
+data2020_gi_pmt <- data2020_gi[order(-total_pmt)] |>
+  tibble() |>
+  filter(total_pmt >100000) |>
+  left_join(x = _, y = phys_data)
+
+data2020_gi_pmt_short <- data2020_gi_pmt %>% 
+  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
+  mutate(year = 2020)
+
+rm(data2020_gi_pmt)
+rm(data2020_gi)
+
+data2020_hep <- data2020[Covered_Recipient_Type == "Covered Recipient Physician" & Physician_Primary_Type == "Medical Doctor" & Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Hepatology", .(total_pmt = sum(Total_Amount_of_Payment_USDollars)), by = "Physician_Profile_ID"]
+
+data2020_hep_pmt <- data2020_hep[order(-total_pmt)] |>
+  tibble() |>
+  filter(total_pmt >100000) |>
+  left_join(x = _, y = phys_data)
+
+data2020_hep_pmt_short <- data2020_hep_pmt %>% 
+  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
+  mutate(year = 2020)
+
+rm(data2020_hep_pmt)
+rm(data2020_hep)
+rm(data2020)
+
+```
+
+now to clean up, bind rows, and print out a nice table.
+
+```{r}
+
+rm(phys_data)
+
+# put all years together
+compiled_pmt <- bind_rows(data2014_gi_pmt_short,
+          data2014_hep_pmt_short,
+          data2015_gi_pmt_short,
+          data2015_hep_pmt_short,
+          data2016_gi_pmt_short,
+          data2016_hep_pmt_short,
+          data2017_gi_pmt_short,
+          data2017_hep_pmt_short,
+          data2018_gi_pmt_short,
+          data2018_hep_pmt_short,
+          data2019_gi_pmt_short,
+          data2019_hep_pmt_short,
+          data2020_gi_pmt_short,
+          data2020_hep_pmt_short) %>% 
+  arrange(-total_pmt)
+
+#how many unique docs?
+compiled_pmt %>% 
+  distinct(Physician_Profile_First_Name, Physician_Profile_Last_Name) %>% 
+  count()
+
+#cumulative revenue
+compiled_pmt %>% 
+  group_by(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City) %>% 
+  summarize(total = sum(total_pmt)) %>% 
+  arrange(-total) %>% 
+  knitr::kable()
+```
+
