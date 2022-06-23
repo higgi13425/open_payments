@@ -1,6 +1,6 @@
 # open_payments
 
-This R ode will allow you to analyze the data downloaded from the Open Payments website.
+This R code will allow you to analyze the data downloaded from the Open Payments website.
 
 Install R and Rstudio if not available on your computer, using the instructions in chapter 2 here https://bookdown.org/pdr_higgins/rmrwr/.
 
