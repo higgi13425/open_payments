@@ -4,7 +4,7 @@ This R ode will allow you to analyze the data downloaded from the Open Payments 
 
 Install R and Rstudio if not available on your computer, using the instructions in chapter 2 here https://bookdown.org/pdr_higgins/rmrwr/.
 
-Then start by cloning this repository to an RStudio project (I named the project "open_payments") from this Github site. Instructions on how to do this are in chapter 16.1.
+Then start by cloning this repository to an RStudio project (I named the project "open_payments") from this Github site. Instructions on how to do this are in chapter 16.1 of the e-book https://bookdown.org/pdr_higgins/rmrwr/.
 
 Then Download the data files to your Downloads folder from here: https://www.cms.gov/OpenPayments/Data/Dataset-Downloads
 
