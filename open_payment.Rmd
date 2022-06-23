@@ -56,6 +56,10 @@ data2014_hep_pmt_short <- data2014_hep_pmt %>%
 rm(data2014_hep)
 rm(data2014_hep_pmt)
 rm(data2014)
+
+# show results
+data2014_gi_pmt_short
+data2014_hep_pmt_short
 ```
 
 For 2015
@@ -94,6 +98,10 @@ rm(data2015_hep_pmt)
 rm(data2015_hep)
 
 rm(data2015)
+
+# show results
+data2015_gi_pmt_short
+data2015_hep_pmt_short
 ```
 
 For 2016
@@ -129,6 +137,10 @@ data2016_hep_pmt_short <- data2016_hep_pmt %>%
 rm(data2016_hep)
 rm(data2016_hep_pmt)
 rm(data2016)
+
+# show results
+data2016_gi_pmt_short
+data2016_hep_pmt_short
 ```
 
  For 2017
@@ -164,6 +176,10 @@ data2017_hep_pmt_short <- data2017_hep_pmt %>%
 rm(data2017_hep)
 rm(data2017_hep_pmt)
 rm(data2017)
+
+# show results
+data2017_gi_pmt_short
+data2017_hep_pmt_short
 ```
 
 For 2018
@@ -199,6 +215,10 @@ data2018_hep_pmt_short <- data2018_hep_pmt %>%
 rm(data2018_hep_pmt)
 rm(data2018_hep)
 rm(data2018)
+
+# show results
+data2018_gi_pmt_short
+data2018_hep_pmt_short
 ```
 
 For 2019
@@ -234,6 +254,10 @@ data2019_hep_pmt_short <- data2019_hep_pmt %>%
 rm(data2019_hep_pmt)
 rm(data2019_hep)
 rm(data2019)
+
+# show results
+data2019_gi_pmt_short
+data2019_hep_pmt_short
 ```
 
 For 2020
@@ -270,6 +294,9 @@ rm(data2020_hep_pmt)
 rm(data2020_hep)
 rm(data2020)
 
+# show results
+data2020_gi_pmt_short
+data2020_hep_pmt_short
 ```
 
 now to clean up, bind rows, and print out a nice table.
@@ -302,8 +329,9 @@ compiled_pmt %>%
 
 #cumulative revenue
 compiled_pmt %>% 
-  group_by(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City) %>% 
-  summarize(total = sum(total_pmt)) %>% 
+  group_by(Physician_Profile_First_Name,
+           Physician_Profile_Last_Name, 
+           Physician_Profile_City) %>%   summarize(total = sum(total_pmt)) %>% 
   arrange(-total) %>% 
   knitr::kable()
 ```
