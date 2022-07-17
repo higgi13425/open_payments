@@ -11,6 +11,9 @@ library(tidyverse)
 library(here)
 library(data.table)
 library(knitr)
+library(arrow)
+library(duckdb)
+library(gt)
 ```
 
 ## Read physician data
@@ -18,26 +21,73 @@ library(knitr)
 Read in the physician payment file and annual payment files from Open Payments.
 
 ```{r read}
-phys_data <- fread(here("OP_PH_PRFL_SPLMTL_P01212022.csv"))
+provider_data <- fread(here("data_providers/OP_CVRD_RCPNT_PRFL_SPLMTL_P06302022.csv"))
 ```
 
+There are 1.325 M providers listed.
+16.9 % are non-physician Practitioners
+"Covered Recipient Non-Physician Practitioner" vs
+82.3% are "Covered Recipient Physician"
+
 ## Filter down and sum the data for Pulmonary and Critical Care
+
+For 2013
+
+```{r 2013}
+data2013 <- fread(here("data_years/OP_DTL_GNRL_PGYR2013_P01222021.csv"))
+
+data2013_pulm <- data2013[Covered_Recipient_Type == "Covered Recipient Physician" & Physician_Primary_Type == "Medical Doctor" & Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease", .(total_pmt = sum(Total_Amount_of_Payment_USDollars)), by = "Physician_Profile_ID"]
+
+data2013_pulm_pmt <- data2013_pulm[order(-total_pmt)] |>
+  tibble() |>
+  filter(total_pmt >50000) |>
+  left_join(x = _, y = provider_data, by = c("Physician_Profile_ID" = "Covered_Recipient_Profile_ID")) 
+
+data2013_pulm_pmt_short <- data2013_pulm_pmt %>% 
+  select(Covered_Recipient_Profile_First_Name, Covered_Recipient_Profile_Last_Name, Covered_Recipient_Profile_City, Covered_Recipient_Profile_State, total_pmt) %>% 
+  mutate(year = 2013) |>
+  filter(!is.na(Covered_Recipient_Profile_First_Name))
+
+rm(data2013_pulm)
+rm(data2013_pulm_pmt)
+
+data2013_cc <- data2013[Covered_Recipient_Type == "Covered Recipient Physician" & Physician_Primary_Type == "Medical Doctor" & Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Critical Care Medicine", .(total_pmt = sum(Total_Amount_of_Payment_USDollars)), by = c("Covered_Recipient_Profile_ID" = "Physician_Profile_ID")]
+
+data2013_cc_pmt <- data2013_cc[order(-total_pmt)] |>
+  tibble() |>
+  filter(total_pmt >50000) |>
+  left_join(x = _, y = provider_data, by = c("Physician_Profile_ID" = "Covered_Recipient_Profile_ID"))
+
+data2013_cc_pmt_short <- data2013_cc_pmt %>% 
+  select(Covered_Recipient_Profile_First_Name, Covered_Recipient_Profile_Last_Name, Covered_Recipient_Profile_City, Covered_Recipient_Profile_State, total_pmt) %>% 
+  mutate(year = 2013) |>
+  filter(!is.na(Covered_Recipient_Profile_First_Name))
+
+rm(data2013_cc)
+rm(data2013_cc_pmt)
+rm(data2013)
+
+# show results
+data2013_pulm_pmt_short
+data2013_cc_pmt_short
+```
 
 For 2014
 
 ```{r 2014}
-data2014 <- fread(here("OP_DTL_GNRL_PGYR2014_P01212022.csv"))
+data2014 <- fread(here("data_years/OP_DTL_GNRL_PGYR2014_P01212022.csv"))
 
 data2014_pulm <- data2014[Covered_Recipient_Type == "Covered Recipient Physician" & Physician_Primary_Type == "Medical Doctor" & Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease", .(total_pmt = sum(Total_Amount_of_Payment_USDollars)), by = "Physician_Profile_ID"]
 
 data2014_pulm_pmt <- data2014_pulm[order(-total_pmt)] |>
   tibble() |>
   filter(total_pmt >50000) |>
-  left_join(x = _, y = phys_data) 
+  left_join(x = _, y = provider_data, by = c("Physician_Profile_ID" = "Covered_Recipient_Profile_ID")) 
 
 data2014_pulm_pmt_short <- data2014_pulm_pmt %>% 
-  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
-  mutate(year = 2014)
+   select(Covered_Recipient_Profile_First_Name, Covered_Recipient_Profile_Last_Name, Covered_Recipient_Profile_City, Covered_Recipient_Profile_State, total_pmt) %>% 
+  mutate(year = 2013) |>
+  filter(!is.na(Covered_Recipient_Profile_First_Name))
 
 rm(data2014_pulm)
 rm(data2014_pulm_pmt)
@@ -47,11 +97,12 @@ data2014_cc <- data2014[Covered_Recipient_Type == "Covered Recipient Physician" 
 data2014_cc_pmt <- data2014_cc[order(-total_pmt)] |>
   tibble() |>
   filter(total_pmt >50000) |>
-  left_join(x = _, y = phys_data)
+  left_join(x = _, y = provider_data, by = c("Physician_Profile_ID" = "Covered_Recipient_Profile_ID")) 
 
 data2014_cc_pmt_short <- data2014_cc_pmt %>% 
-  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
-  mutate(year = 2014)
+  select(Covered_Recipient_Profile_First_Name, Covered_Recipient_Profile_Last_Name, Covered_Recipient_Profile_City, Covered_Recipient_Profile_State, total_pmt) %>% 
+  mutate(year = 2013) |>
+  filter(!is.na(Covered_Recipient_Profile_First_Name))
 
 rm(data2014_cc)
 rm(data2014_cc_pmt)
@@ -65,18 +116,19 @@ data2014_cc_pmt_short
 For 2015
 
 ```{r 2015}
-data2015 <- fread(here("OP_DTL_GNRL_PGYR2015_P01212022.csv"))
+data2015 <- fread(here("data_years/OP_DTL_GNRL_PGYR2015_P01212022.csv"))
 
 data2015_pulm <- data2015[Covered_Recipient_Type == "Covered Recipient Physician" & Physician_Primary_Type == "Medical Doctor" & Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease", .(total_pmt = sum(Total_Amount_of_Payment_USDollars)), by = "Physician_Profile_ID"]
 
 data2015_pulm_pmt <- data2015_pulm[order(-total_pmt)] |>
   tibble() |>
   filter(total_pmt >50000) |>
-  left_join(x = _, y = phys_data)
+  left_join(x = _, y = provider_data, by = c("Physician_Profile_ID" = "Covered_Recipient_Profile_ID")) 
 
 data2015_pulm_pmt_short <- data2015_pulm_pmt %>% 
-  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
-  mutate(year = 2015)
+  select(Covered_Recipient_Profile_First_Name, Covered_Recipient_Profile_Last_Name, Covered_Recipient_Profile_City, Covered_Recipient_Profile_State, total_pmt) %>% 
+  mutate(year = 2015) |>
+  filter(!is.na(Covered_Recipient_Profile_First_Name)) 
 
 rm(data2015_pulm)
 rm(data2015_pulm_pmt)
@@ -87,16 +139,15 @@ data2015_cc <- data2015[Covered_Recipient_Type == "Covered Recipient Physician" 
 data2015_cc_pmt <- data2015_cc[order(-total_pmt)] |>
   tibble() |>
   filter(total_pmt >50000) |>
-  left_join(x = _, y = phys_data)
+  left_join(x = _, y = provider_data, by = c("Physician_Profile_ID" = "Covered_Recipient_Profile_ID")) 
 
 data2015_cc_pmt_short <- data2015_cc_pmt %>% 
-  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
-  mutate(year = 2015)
+   select(Covered_Recipient_Profile_First_Name, Covered_Recipient_Profile_Last_Name, Covered_Recipient_Profile_City, Covered_Recipient_Profile_State, total_pmt) %>% 
+  mutate(year = 2015) |>
+  filter(!is.na(Covered_Recipient_Profile_First_Name)) 
 
 rm(data2015_cc)
 rm(data2015_cc_pmt)
-rm(data2015_cc)
-
 rm(data2015)
 
 # show results
@@ -107,18 +158,19 @@ data2015_cc_pmt_short
 For 2016
 
 ```{r 2016}
-data2016 <- fread(here("OP_DTL_GNRL_PGYR2016_P01212022.csv"))
+data2016 <- fread(here("data_years/OP_DTL_GNRL_PGYR2016_P01212022.csv"))
 
 data2016_pulm <- data2016[Covered_Recipient_Type == "Covered Recipient Physician" & Physician_Primary_Type == "Medical Doctor" & Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease", .(total_pmt = sum(Total_Amount_of_Payment_USDollars)), by = "Physician_Profile_ID"]
 
 data2016_pulm_pmt <- data2016_pulm[order(-total_pmt)] |>
   tibble() |>
   filter(total_pmt >50000) |>
-  left_join(x = _, y = phys_data)
+  left_join(x = _, y = provider_data, by = c("Physician_Profile_ID" = "Covered_Recipient_Profile_ID")) 
 
 data2016_pulm_pmt_short <- data2016_pulm_pmt %>% 
-  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
-  mutate(year = 2016)
+  select(Covered_Recipient_Profile_First_Name, Covered_Recipient_Profile_Last_Name, Covered_Recipient_Profile_City, Covered_Recipient_Profile_State, total_pmt) %>% 
+  mutate(year = 2016) |>
+  filter(!is.na(Covered_Recipient_Profile_First_Name)) 
 
 rm(data2016_pulm)
 rm(data2016_pulm_pmt)
@@ -128,11 +180,12 @@ data2016_cc <- data2016[Covered_Recipient_Type == "Covered Recipient Physician" 
 data2016_cc_pmt <- data2016_cc[order(-total_pmt)] |>
   tibble() |>
   filter(total_pmt >50000) |>
-  left_join(x = _, y = phys_data)
+  left_join(x = _, y = provider_data, by = c("Physician_Profile_ID" = "Covered_Recipient_Profile_ID")) 
 
 data2016_cc_pmt_short <- data2016_cc_pmt %>% 
-  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
-  mutate(year = 2016)
+  select(Covered_Recipient_Profile_First_Name, Covered_Recipient_Profile_Last_Name, Covered_Recipient_Profile_City, Covered_Recipient_Profile_State, total_pmt) %>% 
+  mutate(year = 2016) |>
+  filter(!is.na(Covered_Recipient_Profile_First_Name)) 
 
 rm(data2016_cc)
 rm(data2016_cc_pmt)
@@ -143,21 +196,22 @@ data2016_pulm_pmt_short
 data2016_cc_pmt_short
 ```
 
- For 2017
+For 2017
 
 ```{r 2017}
-data2017 <- fread(here("OP_DTL_GNRL_PGYR2017_P01212022.csv"))
+data2017 <- fread(here("data_years/OP_DTL_GNRL_PGYR2017_P01212022.csv"))
 
 data2017_pulm <- data2017[Covered_Recipient_Type == "Covered Recipient Physician" & Physician_Primary_Type == "Medical Doctor" & Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease", .(total_pmt = sum(Total_Amount_of_Payment_USDollars)), by = "Physician_Profile_ID"]
 
 data2017_pulm_pmt <- data2017_pulm[order(-total_pmt)] |>
-  tibble() |>
+   tibble() |>
   filter(total_pmt >50000) |>
-  left_join(x = _, y = phys_data)
+  left_join(x = _, y = provider_data, by = c("Physician_Profile_ID" = "Covered_Recipient_Profile_ID")) 
 
 data2017_pulm_pmt_short <- data2017_pulm_pmt %>% 
-  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
-  mutate(year = 2017)
+   select(Covered_Recipient_Profile_First_Name, Covered_Recipient_Profile_Last_Name, Covered_Recipient_Profile_City, Covered_Recipient_Profile_State, total_pmt) %>% 
+  mutate(year = 2017) |>
+  filter(!is.na(Covered_Recipient_Profile_First_Name))
 
 rm(data2017_pulm)
 rm(data2017_pulm_pmt)
@@ -167,11 +221,13 @@ data2017_cc <- data2017[Covered_Recipient_Type == "Covered Recipient Physician" 
 data2017_cc_pmt <- data2017_cc[order(-total_pmt)] |>
   tibble() |>
   filter(total_pmt >50000) |>
-  left_join(x = _, y = phys_data)
+  left_join(x = _, y = provider_data, by = c("Physician_Profile_ID" = "Covered_Recipient_Profile_ID")) 
+
 
 data2017_cc_pmt_short <- data2017_cc_pmt %>% 
-  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
-  mutate(year = 2017)
+  select(Covered_Recipient_Profile_First_Name, Covered_Recipient_Profile_Last_Name, Covered_Recipient_Profile_City, Covered_Recipient_Profile_State, total_pmt) %>% 
+  mutate(year = 2017) |>
+  filter(!is.na(Covered_Recipient_Profile_First_Name))
 
 rm(data2017_cc)
 rm(data2017_cc_pmt)
@@ -185,18 +241,19 @@ data2017_cc_pmt_short
 For 2018
 
 ```{r 2018}
-data2018 <- fread(here("OP_DTL_GNRL_PGYR2018_P01212022.csv"))
+data2018 <- fread(here("data_years/OP_DTL_GNRL_PGYR2018_P01212022.csv"))
 
 data2018_pulm <- data2018[Covered_Recipient_Type == "Covered Recipient Physician" & Physician_Primary_Type == "Medical Doctor" & Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease", .(total_pmt = sum(Total_Amount_of_Payment_USDollars)), by = "Physician_Profile_ID"]
 
 data2018_pulm_pmt <- data2018_pulm[order(-total_pmt)] |>
   tibble() |>
   filter(total_pmt >50000) |>
-  left_join(x = _, y = phys_data)
+  left_join(x = _, y = provider_data, by = c("Physician_Profile_ID" = "Covered_Recipient_Profile_ID")) 
 
 data2018_pulm_pmt_short <- data2018_pulm_pmt %>% 
-  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
-  mutate(year = 2018)
+   select(Covered_Recipient_Profile_First_Name, Covered_Recipient_Profile_Last_Name, Covered_Recipient_Profile_City, Covered_Recipient_Profile_State, total_pmt) %>% 
+  mutate(year = 2018) |>
+  filter(!is.na(Covered_Recipient_Profile_First_Name))
 
 rm(data2018_pulm_pmt)
 rm(data2018_pulm)
@@ -206,11 +263,12 @@ data2018_cc <- data2018[Covered_Recipient_Type == "Covered Recipient Physician" 
 data2018_cc_pmt <- data2018_cc[order(-total_pmt)] |>
   tibble() |>
   filter(total_pmt >50000) |>
-  left_join(x = _, y = phys_data)
+  left_join(x = _, y = provider_data, by = c("Physician_Profile_ID" = "Covered_Recipient_Profile_ID")) 
 
 data2018_cc_pmt_short <- data2018_cc_pmt %>% 
-  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
-  mutate(year = 2018)
+  select(Covered_Recipient_Profile_First_Name, Covered_Recipient_Profile_Last_Name, Covered_Recipient_Profile_City, Covered_Recipient_Profile_State, total_pmt) %>% 
+  mutate(year = 2018) |>
+  filter(!is.na(Covered_Recipient_Profile_First_Name))
 
 rm(data2018_cc_pmt)
 rm(data2018_cc)
@@ -224,18 +282,19 @@ data2018_cc_pmt_short
 For 2019
 
 ```{r 2019}
-data2019 <- fread(here("OP_DTL_GNRL_PGYR2019_P01212022.csv"))
+data2019 <- fread(here("data_years/OP_DTL_GNRL_PGYR2019_P01212022.csv"))
 
 data2019_pulm <- data2019[Covered_Recipient_Type == "Covered Recipient Physician" & Physician_Primary_Type == "Medical Doctor" & Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease", .(total_pmt = sum(Total_Amount_of_Payment_USDollars)), by = "Physician_Profile_ID"]
 
 data2019_pulm_pmt <- data2019_pulm[order(-total_pmt)] |>
   tibble() |>
   filter(total_pmt >50000) |>
-  left_join(x = _, y = phys_data)
+  left_join(x = _, y = provider_data, by = c("Physician_Profile_ID" = "Covered_Recipient_Profile_ID")) 
 
 data2019_pulm_pmt_short <- data2019_pulm_pmt %>% 
-  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
-  mutate(year = 2019)
+  select(Covered_Recipient_Profile_First_Name, Covered_Recipient_Profile_Last_Name, Covered_Recipient_Profile_City, Covered_Recipient_Profile_State, total_pmt) %>% 
+  mutate(year = 2019) |>
+  filter(!is.na(Covered_Recipient_Profile_First_Name))
 
 rm(data2019_pulm_pmt)
 rm(data2019_pulm)
@@ -245,11 +304,12 @@ data2019_cc <- data2019[Covered_Recipient_Type == "Covered Recipient Physician" 
 data2019_cc_pmt <- data2019_cc[order(-total_pmt)] |>
   tibble() |>
   filter(total_pmt >50000) |>
-  left_join(x = _, y = phys_data)
+  left_join(x = _, y = provider_data, by = c("Physician_Profile_ID" = "Covered_Recipient_Profile_ID")) 
 
 data2019_cc_pmt_short <- data2019_cc_pmt %>% 
-  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
-  mutate(year = 2019)
+  select(Covered_Recipient_Profile_First_Name, Covered_Recipient_Profile_Last_Name, Covered_Recipient_Profile_City, Covered_Recipient_Profile_State, total_pmt) %>% 
+  mutate(year = 2019) |>
+  filter(!is.na(Covered_Recipient_Profile_First_Name))
 
 rm(data2019_cc_pmt)
 rm(data2019_cc)
@@ -263,18 +323,19 @@ data2019_cc_pmt_short
 For 2020
 
 ```{r 2020}
-data2020 <- fread(here("OP_DTL_GNRL_PGYR2020_P01212022.csv"))
+data2020 <- fread(here("data_years/OP_DTL_GNRL_PGYR2020_P01212022.csv"))
 
-data2020_pulm <- data2020[Covered_Recipient_Type == "Covered Recipient Physician" & Physician_Primary_Type == "Medical Doctor" & Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Gastroenterology", .(total_pmt = sum(Total_Amount_of_Payment_USDollars)), by = "Physician_Profile_ID"]
+data2020_pulm <- data2020[Covered_Recipient_Type == "Covered Recipient Physician" & Physician_Primary_Type == "Medical Doctor" & Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease", .(total_pmt = sum(Total_Amount_of_Payment_USDollars)), by = "Physician_Profile_ID"]
 
 data2020_pulm_pmt <- data2020_pulm[order(-total_pmt)] |>
   tibble() |>
   filter(total_pmt >50000) |>
-  left_join(x = _, y = phys_data)
+  left_join(x = _, y = provider_data, by = c("Physician_Profile_ID" = "Covered_Recipient_Profile_ID")) 
 
 data2020_pulm_pmt_short <- data2020_pulm_pmt %>% 
-  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
-  mutate(year = 2020)
+  select(Covered_Recipient_Profile_First_Name, Covered_Recipient_Profile_Last_Name, Covered_Recipient_Profile_City, Covered_Recipient_Profile_State, total_pmt) %>% 
+  mutate(year = 2020) |>
+  filter(!is.na(Covered_Recipient_Profile_First_Name))
 
 rm(data2020_pulm_pmt)
 rm(data2020_pulm)
@@ -284,11 +345,12 @@ data2020_cc <- data2020[Covered_Recipient_Type == "Covered Recipient Physician" 
 data2020_cc_pmt <- data2020_cc[order(-total_pmt)] |>
   tibble() |>
   filter(total_pmt >50000) |>
-  left_join(x = _, y = phys_data)
+  left_join(x = _, y = provider_data, by = c("Physician_Profile_ID" = "Covered_Recipient_Profile_ID")) 
 
 data2020_cc_pmt_short <- data2020_cc_pmt %>% 
-  select(Physician_Profile_First_Name, Physician_Profile_Last_Name, Physician_Profile_City, Physician_Profile_State, total_pmt) %>% 
-  mutate(year = 2020)
+  select(Covered_Recipient_Profile_First_Name, Covered_Recipient_Profile_Last_Name, Covered_Recipient_Profile_City, Covered_Recipient_Profile_State, total_pmt) %>% 
+  mutate(year = 2020) |>
+  filter(!is.na(Covered_Recipient_Profile_First_Name))
 
 rm(data2020_cc_pmt)
 rm(data2020_cc)
@@ -299,14 +361,59 @@ data2020_pulm_pmt_short
 data2020_cc_pmt_short
 ```
 
+For 2021
+
+```{r 2021}
+data2021 <- fread(here("data_years/OP_DTL_GNRL_PGYR2021_P06302022.csv"))
+
+data2021_pulm <- data2021[Covered_Recipient_Type == "Covered Recipient Physician" & Covered_Recipient_Primary_Type_1 == "Medical Doctor" & Covered_Recipient_Specialty_1 == "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease", .(total_pmt = sum(Total_Amount_of_Payment_USDollars)), by = "Covered_Recipient_Profile_ID"]
+
+data2021_pulm_pmt <- data2021_pulm[order(-total_pmt)] |>
+   tibble() |>
+  filter(total_pmt >50000) |>
+  left_join(x = _, y = provider_data) 
+
+data2021_pulm_pmt_short <- data2021_pulm_pmt %>% 
+  select(Covered_Recipient_Profile_First_Name, Covered_Recipient_Profile_Last_Name, Covered_Recipient_Profile_City, Covered_Recipient_Profile_State, total_pmt) %>% 
+  mutate(year = 2021) |>
+  filter(!is.na(Covered_Recipient_Profile_First_Name))
+
+rm(data2021_pulm_pmt)
+rm(data2021_pulm)
+
+data2021_cc <- data2021[Covered_Recipient_Primary_Type_1 == "Medical Doctor" & Covered_Recipient_Specialty_1 ==  "Allopathic & Osteopathic Physicians|Internal Medicine|Critical Care Medicine", .(total_pmt = sum(Total_Amount_of_Payment_USDollars)), by = "Covered_Recipient_Profile_ID"]
+
+data2021_cc_pmt <- data2021_cc[order(-total_pmt)] |>
+  tibble() |>
+  filter(total_pmt >50000) |>
+  left_join(x = _, y = provider_data)
+
+data2021_cc_pmt_short <- data2021_cc_pmt %>% 
+  select(Covered_Recipient_Profile_First_Name, Covered_Recipient_Profile_Last_Name, Covered_Recipient_Profile_City, Covered_Recipient_Profile_State, total_pmt) %>% 
+  mutate(year = 2021) |>
+  filter(!is.na(Covered_Recipient_Profile_First_Name))
+
+rm(data2021_cc_pmt)
+rm(data2021_cc)
+rm(data2021)
+
+# show results
+data2021_pulm_pmt_short
+data2021_cc_pmt_short
+```
+
+
 now to clean up, bind rows, and print out a nice table.
 
 ```{r}
 
-rm(phys_data)
+rm(provider_data)
 
 # put all years together
-compiled_pmt <- bind_rows(data2014_pulm_pmt_short,
+compiled_pmt <- bind_rows(
+          data2013_pulm_pmt_short,
+          data2013_cc_pmt_short,
+          data2014_pulm_pmt_short,
           data2014_cc_pmt_short,
           data2015_pulm_pmt_short,
           data2015_cc_pmt_short,
@@ -319,20 +426,268 @@ compiled_pmt <- bind_rows(data2014_pulm_pmt_short,
           data2019_pulm_pmt_short,
           data2019_cc_pmt_short,
           data2020_pulm_pmt_short,
-          data2020_cc_pmt_short) %>% 
+          data2020_cc_pmt_short,
+          data2021_pulm_pmt_short,
+          data2021_cc_pmt_short) %>% 
+  arrange(-total_pmt)
+
+#pulm only
+compiled_pulm_pmt <- bind_rows(
+          data2013_pulm_pmt_short,
+          data2014_pulm_pmt_short,
+          data2015_pulm_pmt_short,
+          data2016_pulm_pmt_short,
+          data2017_pulm_pmt_short,
+          data2018_pulm_pmt_short,
+          data2019_pulm_pmt_short,
+          data2020_pulm_pmt_short,
+          data2020_cc_pmt_short,
+          data2021_pulm_pmt_short,
+          data2021_cc_pmt_short) %>% 
   arrange(-total_pmt)
 
 #how many unique docs?
 compiled_pmt %>% 
-  distinct(Physician_Profile_First_Name, Physician_Profile_Last_Name) %>% 
+  distinct(Covered_Recipient_Profile_First_Name, Covered_Recipient_Profile_Last_Name) %>% 
   count()
 
 #cumulative revenue
 compiled_pmt %>% 
-  group_by(Physician_Profile_First_Name,
-           Physician_Profile_Last_Name, 
-           Physician_Profile_City) %>%   summarize(total = sum(total_pmt)) %>% 
+  group_by(Covered_Recipient_Profile_First_Name,
+           Covered_Recipient_Profile_Last_Name, 
+           Covered_Recipient_Profile_City,
+           Covered_Recipient_Profile_State) %>%   
+  summarize(total = sum(total_pmt)) %>% 
   arrange(-total) -> 
 cumul_rev
+```
+
+For 2013, experiment with {arrow} package
+
+```{r}
+# read in 4.17M rows
+ds_2013 <- arrow::read_csv_arrow(here("data_years/OP_DTL_GNRL_PGYR2013_P01222021.csv"))
+
+# filter for physician, pulm or CC
+# down to 91K rows, 14 vars
+ds_2013_pulm <- ds_2013 |> 
+  filter(Covered_Recipient_Type == "Covered Recipient Physician" & Physician_Primary_Type == "Medical Doctor" & Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease") %>% 
+  select(Physician_Profile_ID, Physician_First_Name, Physician_Middle_Name, Physician_Last_Name, Recipient_Primary_Business_Street_Address_Line1, Recipient_City, Recipient_State, Recipient_Zip_Code, Recipient_Country, Submitting_Applicable_Manufacturer_or_Applicable_GPO_Name, Nature_of_Payment_or_Transfer_of_Value,  Name_of_Associated_Covered_Device_or_Medical_Supply1,
+Total_Amount_of_Payment_USDollars, Date_of_Payment)
+
+# WHO ate the most on the company dime in 2013?
+ds_2013_pulm |>
+  filter(Nature_of_Payment_or_Transfer_of_Value == "Food and Beverage") |>
+  group_by(Physician_First_Name, Physician_Last_Name) %>% 
+  summarize(total = sum(Total_Amount_of_Payment_USDollars)) |>
+  arrange(-total) |>
+  filter(total > 1000)
+
+# WHAT companies paid the most to pulm/CC docs in 2013?
+ds_2013_pulm |>
+  group_by(Submitting_Applicable_Manufacturer_or_Applicable_GPO_Name) %>% 
+  summarize(total = sum(Total_Amount_of_Payment_USDollars)) |>
+  arrange(-total) 
+
+# WHAT products paid the most to pulm/CC docs in 2013?
+ds_2013_pulm |>
+  group_by(Name_of_Associated_Covered_Device_or_Medical_Supply1) %>% 
+  summarize(total = sum(Total_Amount_of_Payment_USDollars)) |>
+  arrange(-total) 
+```
+
+For 2014 data, determine descriptive data by payment type
+- min, mean, max, sd for each
+
+```{r}
+data2014 |>
+  tibble() |>
+   filter(Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease" | Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Critical Care Medicine") |>
+  group_by(Nature_of_Payment_or_Transfer_of_Value) |>
+  summarize(min = min(Total_Amount_of_Payment_USDollars),
+            mean = mean(Total_Amount_of_Payment_USDollars),
+            max = max(Total_Amount_of_Payment_USDollars),
+            sd = sd(Total_Amount_of_Payment_USDollars)) 
+    
+```
+
+For 2014 data, determine how many payments by payment type
+
+```{r}
+data2014 |>
+  tibble() |>
+   filter(Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease" | Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Critical Care Medicine") |>
+  count(Nature_of_Payment_or_Transfer_of_Value) |>
+  arrange(-n)
+```
+
+
+For 2014 data, what were the royalty or license payments (n =38)?
+A total of 6 people (Mostly Ko-Pen Wang)
+```{r}
+data2014 |>
+  tibble() |>
+   filter(Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease" | Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Critical Care Medicine") |>
+  filter(Nature_of_Payment_or_Transfer_of_Value == "Royalty or License") %>% 
+  select(Physician_First_Name, Physician_Last_Name, Total_Amount_of_Payment_USDollars) |>
+  print(n=Inf)
+
+data2014 |>
+  tibble() |>
+   filter(Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease" | Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Critical Care Medicine") |>
+  filter(Nature_of_Payment_or_Transfer_of_Value == "Royalty or License") %>% 
+  group_by(Physician_First_Name, Physician_Last_Name) %>% 
+  summarise(usd = sum(Total_Amount_of_Payment_USDollars)) %>% 
+  arrange(-usd)
+```
+
+Try with arrow and all datasets
+
+```{r}
+ds_all <- arrow::open_dataset(here("data_years"), format = 'csv') %>% 
+  arrow::to_duckdb()
+
+# object.size()
+# data2014 alone  5740326480 bytes ~ 5.7GB
+# All years ~ 94M rows by 65 vars
+# total for 2013-2021 is 47.7GB
+# ds_all only 146792 bytes - mostly pointers to data
+
+ds_all %>% 
+  filter(Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease") |> 
+group_by(Nature_of_Payment_or_Transfer_of_Value) |>
+summarize(min = min(Total_Amount_of_Payment_USDollars),
+median = median(Total_Amount_of_Payment_USDollars),
+max = max(Total_Amount_of_Payment_USDollars),
+sd = sd(Total_Amount_of_Payment_USDollars)) %>% 
+  collect() %>% 
+  gt::gt() %>% 
+  gt::tab_header(title = "Open Payments Descriptive Data",
+    subtitle = "Pulmonary 2016-2021") %>% 
+  gt::fmt_number(columns = min:sd, decimals = 2, use_seps = TRUE) %>% 
+  gt::gtsave("descriptive_pmt_types.html")
+
+# timed with tictoc - 98 sec to process  
+```
+
+Try to get total payments by year to pulm/CC - is sunshine act working?
+Total dollars spent.
+Rising every year 2016-2019,
+dropped >50% in 2020, then rose again in 2021
+
+```{r}
+ds_all %>% 
+  filter(Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease") |> 
+  group_by(Program_Year) |>
+  summarize(
+  total_usd = sum(Total_Amount_of_Payment_USDollars)) %>% 
+  collect() %>% 
+  arrange(Program_Year) %>% 
+  gt::gt() %>% 
+  cols_label(Program_Year = "Year",
+             total_usd = "Dollars") %>% 
+  gt::tab_header(title = "Open Payments By Year",
+    subtitle = "Pulmonary 2016-2021") %>% 
+  gt::fmt_number(columns = total_usd, decimals = 2, use_seps = TRUE) %>% 
+  gt::gtsave("pmt_by_year.html")
+```
+
+Top Ten Companies overall spend 2016-2021
+
+```{r}
+ds_all %>% 
+  filter(Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease") |> 
+  group_by(Applicable_Manufacturer_or_Applicable_GPO_Making_Payment_Name) |>
+  summarize(
+  total_usd = sum(Total_Amount_of_Payment_USDollars),
+  total_pmt = count(Total_Amount_of_Payment_USDollars)) %>% 
+  collect() %>% 
+    slice_max(n = 25, order_by = total_usd) %>% 
+  gt::gt() %>% 
+  cols_label(Applicable_Manufacturer_or_Applicable_GPO_Making_Payment_Name = "Company",
+             total_usd = "Dollars",
+             total_pmt = "Number of Payments") %>% 
+  gt::tab_header(title = "Open Payments, Top 25 Companies Overall",
+    subtitle = "Pulmonary 2016-2021") %>% 
+  gt::fmt_number(columns = total_usd, decimals = 2, use_seps = TRUE) %>% 
+  gt::fmt_number(columns = total_pmt, decimals = 0, use_seps = TRUE) %>% 
+  gt::gtsave("company_usd_6year.html")
+```
+
+Top Ten companies by year
+
+```{r}
+ds_all %>% 
+  filter(Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease") |> 
+  group_by(Program_Year, Applicable_Manufacturer_or_Applicable_GPO_Making_Payment_Name) |>
+  summarize(
+  total_usd = sum(Total_Amount_of_Payment_USDollars)) %>% 
+  collect() %>% 
+  ungroup() %>% 
+  group_by(Program_Year) %>% 
+    slice_max(n =10, order_by = total_usd) %>% 
+  arrange(Program_Year, -total_usd) %>% 
+  gt::gt() %>% 
+  cols_label(Program_Year = "Year",
+             Applicable_Manufacturer_or_Applicable_GPO_Making_Payment_Name = "Company",
+             total_usd = "Dollars") %>% 
+  gt::tab_header(title = "Open Payments, Top 10 Companies by Year",
+    subtitle = "Pulmonary 2016-2021") %>% 
+  gt::fmt_number(columns = total_usd, decimals = 2, use_seps = TRUE) %>% 
+  gt::gtsave("company_usd_by_year.html")
+```
+
+try with vroom - crashes - can load, but can't handle all the data in RAM
+
+```{r}
+files <- fs::dir_ls(here("data_years"))
+files
+df_all <- vroom::vroom(files)
+
+df_all %>% 
+  filter(Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease") |> 
+  group_by(Program_Year) |>
+  summarize(
+  total_usd = sum(Total_Amount_of_Payment_USDollars)) 
+```
+
+# clean up 2021 to 75 columns (format from 2106-2020)
+```{r}
+vroom::vroom("raw_data_2021_91vars/OP_DTL_GNRL_PGYR2021_P06302022.csv") %>% 
+  # take out 16 extra columns
+  select(-Covered_Recipient_NPI,
+         -Covered_Recipient_Primary_Type_2,
+         -Covered_Recipient_Primary_Type_3,
+         -Covered_Recipient_Primary_Type_4,
+         -Covered_Recipient_Primary_Type_5,
+         -Covered_Recipient_Primary_Type_6,
+         -Covered_Recipient_Specialty_2,
+         -Covered_Recipient_Specialty_3,
+         -Covered_Recipient_Specialty_4,
+         -Covered_Recipient_Specialty_5,
+         -Covered_Recipient_Specialty_6,
+         -Associated_Device_or_Medical_Supply_PDI_1,
+         -Associated_Device_or_Medical_Supply_PDI_2,
+         -Associated_Device_or_Medical_Supply_PDI_3,
+         -Associated_Device_or_Medical_Supply_PDI_4,
+         -Associated_Device_or_Medical_Supply_PDI_5) %>% 
+  #rename Covered_Recipient columns
+  rename(Physician_Primary_Type = Covered_Recipient_Primary_Type_1,
+        Physician_Profile_ID = Covered_Recipient_Profile_ID,
+       Physician_First_Name =
+         Covered_Recipient_First_Name,
+       Physician_Middle_Name =
+        Covered_Recipient_Middle_Name,
+      Physician_Last_Name =
+       Covered_Recipient_Last_Name,
+      Physician_Name_Suffix =
+      Covered_Recipient_Name_Suffix,
+      Physician_Specialty = Covered_Recipient_Specialty_1,
+      Physician_License_State_code1 = Covered_Recipient_License_State_code1, 
+       Physician_License_State_code2 = Covered_Recipient_License_State_code2,
+       Physician_License_State_code3 = Covered_Recipient_License_State_code3,
+       Physician_License_State_code4 = Covered_Recipient_License_State_code4,
+       Physician_License_State_code5 = Covered_Recipient_License_State_code5) %>% 
+  write_csv("data_years/2021_75col.csv")
 ```
 
