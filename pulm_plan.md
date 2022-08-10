@@ -11,8 +11,9 @@ Short term goals
 
 1. Next look at total # people paid by year
 2. Top 10 companies - total # payments, total # unique payees, total # dollars - plot companies on 2 axes - # payees vs # dollars to see strategy - broadcast vs narrowcast to KOLs
-3. Consider using zipcodeR package and mapping zips to county
-4. Try grouping by zip, mapping data with geom_sf
+3. Clean up code to functions
+4.Consider using zipcodeR package and mapping zips to county
+5. Try grouping by zip, mapping data with geom_sf
 
 - background on sunshine act and open payments - https://www.mgma.com/advocacy/issues/federal-compliance/physician-open-payments-program
 

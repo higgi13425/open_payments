@@ -1,0 +1,283 @@
+---
+title: "Open Payments Data Cleaning"
+author: "Peter Higgins"
+date: "6/22/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(here)
+library(data.table)
+library(dtplyr)
+library(gt)
+library(magrittr)
+library(tigris)
+library(zipcodeR)
+
+specialty <- "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease"
+
+# zip_table originally from https://gist.githubusercontent.com/erichurst/7882666/raw/5bdc46db47d9515269ab12ed6fb2850377fd869e/US%2520Zip%2520Codes%2520from%25202013%2520Government%2520Data
+# 
+zip_table <- read_csv("data_added/zip_table.csv")
+
+names_35 <- read_csv('data_added/names_35.csv') %>% pull()
+
+# mapping - county name is in NAMELSAD column
+county_sf <- tigris::counties()
+```
+
+## Goals of this Rmd - Clean, Merge, and Write
+1. Data cleaning documentation
+2. provider data - load, clean, zip-merge, write provider data csv
+3. data_years - load each year, select vars, rename vars, clean names, zip merge, filter to specialty
+4. compile to final all years data, merge with provider data with lat/long, write csv for all years. [Possibly use zipcodeR package to map to counties instead of lat/long - first normalize Recipient zip with normalize_zip(), then reverse_zipcode(dataset$zip_var)$county]
+
+## Data Cleaning and Data challenges with Open Payments
+
+The data format on open payments has changed over time. The 2013-2014 data has 65 columns, the 2015-2020 data has 75 columns, and the 2021 data has 91 columns with different (new) column names. In 2021, the data includes NPs, PAs, nurse-midwives and other miscellaneous physician extenders, thus the column names that included "Physician" were changed to "Provider". 
+
+On zip codes, 2013 and 2014 zip codes were integer, while 2015 and later zip codes were character format. Some zip codes are zip +4, others are not. For cleaning purposes, we will use zip5 in character format for all years.
+
+For the names fields, most are all caps, some are not (sometimes) - these will not match. Also, some multiple-last-names have hyphens sometimes, spaces other times. For cleaning purposes, will make all names all caps, and replace all spaces with hyphens for consistency.
+
+For cleaning purposes, we will remove the extra 16 columns from 2021, and will use 2020 (35) column names as the standard. We will select the 35 most interesting columns from all years 2013-2021. 2013 does not have all of the 35 columns, so we will add the missing 2 columns and set the values to NA for these.
+
+For mapping providers to zip code latitude and longitude for mapping, we will use zip5 (str_sub to get first 5 characters) and merge with an existing table of zip codes online. 
+
+## Read physician data and add lat/long
+
+1. Read in the physician payment file from Open Payments.
+2. mutate a ZIP variable with 5 characters (not zip +4)
+3. join to zipcode table to add 2 new variables (lat, lng) for mapping
+4. Fix 3 names (first, middle, last) to uppercase
+5. Fix 3 names to replace spaces with hyphens for consistency
+
+```{r read}
+provider_data <- read_csv("data_providers/OP_CVRD_RCPNT_PRFL_SPLMTL_P06302022.csv") %>% 
+  mutate(Covered_Recipient_Profile_First_Name = toupper(Covered_Recipient_Profile_First_Name),
+        Covered_Recipient_Profile_Middle_Name = toupper(Covered_Recipient_Profile_Middle_Name),
+        Covered_Recipient_Profile_Last_Name = toupper(Covered_Recipient_Profile_Last_Name),
+        Covered_Recipient_Profile_Last_Name = str_replace_all(Covered_Recipient_Profile_First_Name, " ", "-"),
+        str_replace_all(Covered_Recipient_Profile_Middle_Name, " ", "-"),
+        str_replace_all(Covered_Recipient_Profile_Last_Name, " ", "-"))
+
+# add zip field with 5 digits only
+# save back to provider data
+provider_data %<>% 
+  mutate(ZIP = str_sub(Covered_Recipient_Profile_Zipcode, 1, 5)) %>% left_join(zip_table)
+
+# tried to get county from zip code- incomplete
+# provider_data %<>% 
+#  mutate(county = 
+#  reverse_zipcode(provider_data$ZIP)$county)
+
+# write back to new file in data_providers folder
+write_csv(provider_data, "data_providers/providers_lat_long.csv")
+```
+
+## Reading in and Cleaning Annual Data
+
+### 2013
+Now to start reading in data_years files, starting with 2013. This one needs
+- to be selected down to 35 variables
+- renamed with 35 vars
+- assign NA to the values of 2 variables not recorded in 2013-2014
+- mutate to 5 digit zip, format to char
+- clean 3 names to upper, no spaces (replace with dashes)
+- filter to pulm
+- remove large version of dataset
+```{r}
+# test fread names from 2013-15, can we match these?
+# 2013/2014 has zip code as int, 2015 as char
+# now fixed
+# need to filter each to pulm, then write as csv
+ds_2013 <- fread(here("raw_data_years/OP_DTL_GNRL_PGYR2013_P01222021.csv"), select = c(6:9, 11:16, 19:21, 26:27, 29:39, 42, 40, 44, 46, 45, 49, 1, 64:65))
+
+names(ds_2013) <- names_35
+ds_2013[ , c(31,33)]<- NA 
+ds_2013 %>% 
+  tibble() %>% 
+  mutate(Recipient_Zip_Code= as.character(Recipient_Zip_Code)) %>% 
+  mutate(ZIP = str_sub(Recipient_Zip_Code, 1, 5)) %>% 
+  data.table() ->
+ds_2013
+
+ds_2013_pulm <- ds_2013[Physician_Specialty == specialty , ]
+
+rm(ds_2013)
+```
+
+### 2014
+Now to start reading in data_years files, now with 2014. This one needs
+- to be selected down to 35 variables
+- renamed with 35 vars
+- assign NA to the values of 2 variables not recorded in 2013-2014
+- mutate to 5 digit zip, format to char
+- clean 3 names to upper, no spaces (replace with dashes)
+- filter to pulm
+- remove large version of dataset
+```{r}
+ds_2014 <- fread(here("raw_data_years/OP_DTL_GNRL_PGYR2014_P01212022.csv"), select = c(6:9, 11:16, 19:21, 26:27, 29:39, 42, 40, 44, 46, 45, 49, 1, 64:65))
+
+names(ds_2014) <- names_35
+ds_2014[ , c(31,33)] <- NA
+ds_2014 %>% 
+  tibble() %>% 
+  mutate(Recipient_Zip_Code =  as.character(Recipient_Zip_Code)) %>% 
+  mutate(ZIP = str_sub(Recipient_Zip_Code, 1, 5)) %>% 
+  data.table()  ->
+ds_2014
+
+ds_2014_pulm <- ds_2014[Physician_Specialty == specialty , ]
+
+rm(ds_2014)
+```
+
+### 2015
+Now to start reading in data_years files, now with 2015. This one needs
+- to be selected down to 35 variables
+- renamed with names_35
+- mutate to 5 digit zip, format to char
+- clean 3 names to upper, no spaces (replace with dashes)
+- filter to pulm
+- remove large version of dataset
+```{r}
+ds_2015 <- fread(here("raw_data_years/OP_DTL_GNRL_PGYR2015_P01212022.csv"),  select = c(6:9, 11:16, 19:21, 26:27, 29:39, 42, 40, 44, 46, 45, 49, 1, 64:65))
+
+names(ds_2015) <- names_35
+
+ds_2015 %>% 
+  tibble() %>% 
+  mutate(ZIP = str_sub(Recipient_Zip_Code, 1, 5)) %>% 
+  data.table()  ->
+ds_2015
+
+ds_2015_pulm <- ds_2015[Physician_Specialty == specialty , ]
+
+rm(ds_2015)
+```
+-----START HERE ----
+### 2016
+This one needs
+- to be selected down to 35 variables
+- renamed with names_35
+- mutate to 5 digit zip
+- filter to pulm
+- remove large nonspecific, not just pulm version of dataset
+
+```{r}
+ds_2016 <- fread(here("data_years/OP_DTL_GNRL_PGYR2016_P01212022.csv"), select = c(6:9, 11:16, 19:21, 26:27, 29:39, 42:44, 46, 51:53, 74:75)) 
+
+names(ds_2016) <- names_35
+ds_2016 %>% 
+  tibble() %>% 
+  mutate(ZIP = str_sub(Recipient_Zip_Code, 1, 5)) %>% 
+  data.table()  ->
+ds_2016
+
+ds_2016_pulm <- ds_2016[Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease", ]
+
+rm(ds_2016)
+```
+
+
+```{r}
+ds_2017 <- fread(here("data_years/OP_DTL_GNRL_PGYR2017_P01212022.csv"), select = c(6:9, 11:16, 19:21, 26:27, 29:39, 42:44, 46, 51:53, 74:75)) 
+
+names(ds_2017) <- names_35
+ds_2017 %>% 
+  tibble() %>% 
+  mutate(ZIP = str_sub(Recipient_Zip_Code, 1, 5)) %>% 
+  data.table()  ->
+ds_2017
+
+ds_2017_pulm <- ds_2017[Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease", ]
+
+rm(ds_2017)
+```
+
+
+```{r}
+ds_2018 <- fread(here("data_years/OP_DTL_GNRL_PGYR2018_P01212022.csv"), select = c(6:9, 11:16, 19:21, 26:27, 29:39, 42:44, 46, 51:53, 74:75)) 
+
+names(ds_2018) <- names_35
+ds_2018 %>% 
+  tibble() %>% 
+  mutate(ZIP = str_sub(Recipient_Zip_Code, 1, 5)) %>% 
+  data.table()  ->
+ds_2018
+
+ds_2018_pulm <- ds_2018[Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease", ]
+
+rm(ds_2018)
+```
+
+
+```{r}
+ds_2019 <- fread(here("data_years/OP_DTL_GNRL_PGYR2019_P01212022.csv"), select = c(6:9, 11:16, 19:21, 26:27, 29:39, 42:44, 46, 51:53, 74:75)) 
+
+names(ds_2019) <- names_35
+ds_2019 %>% 
+  tibble() %>% 
+  mutate(ZIP = str_sub(Recipient_Zip_Code, 1, 5)) %>% 
+  data.table()  ->
+ds_2019
+
+ds_2019_pulm <- ds_2019[Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease", ]
+
+rm(ds_2019)
+```
+
+
+```{r}
+ds_2020 <- fread(here("data_years/OP_DTL_GNRL_PGYR2020_P01212022.csv"), select = c(6:9, 11:16, 19:21, 26:27, 29:39, 42:44, 46, 51:53, 74:75)) 
+
+names(ds_2020) <- names_35
+ds_2020 %>% 
+  tibble() %>% 
+  mutate(ZIP = str_sub(Recipient_Zip_Code, 1, 5)) %>% 
+  data.table()  ->
+ds_2020
+
+ds_2020_pulm <- ds_2020[Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease", ]
+
+rm(ds_2020)
+```
+
+
+```{r}
+ds_2021 <- fread(here("data_years/2021_75col.csv"), select = c(6:9, 11:16, 19:21, 26:27, 29:39, 42:44, 46, 51:53, 74:75)) 
+
+names(ds_2021) <- names_35
+
+# mutate in data.table
+ds_2021[ , ZIP := str_sub(Recipient_Zip_Code, 1, 5)]  ->
+ds_2021
+
+ds_2021_pulm <- ds_2021[Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease", ]
+
+rm(ds_2021)
+```
+
+### Now to Bind them All Together
+
+```{r}
+ds_full <- rbindlist(list(ds_2013_pulm, ds_2014_pulm, ds_2015_pulm, ds_2016_pulm, ds_2017_pulm, ds_2018_pulm, ds_2019_pulm,
+              ds_2020_pulm, ds_2021_pulm))
+
+
+# gotchas - some names not all caps
+# some names with space vs hyphen (esp last name)
+# normalize all to hyphens
+# then back to data.table
+
+ds_full <- ds_full[ , Physician_First_Name := toupper(str_replace_all(Physician_First_Name, " ", "-"))][ , Physician_Middle_Name := toupper(str_replace_all(Physician_Middle_Name, " ", "-"))][ , Physician_Last_Name := toupper(str_replace_all(Physician_Last_Name, " ", "-"))]
+```
+
+### Write to csv
+```{r}
+fwrite(ds_full, "dataset_full.csv")
+```
+

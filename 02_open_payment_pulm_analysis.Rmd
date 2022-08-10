@@ -1,0 +1,419 @@
+---
+title: "Open Payments Data Cleaning"
+author: "Peter Higgins"
+date: "6/22/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+library(here)
+library(data.table)
+library(dtplyr)
+library(gt)
+library(magrittr)
+library(tigris)
+library(zipcodeR)
+library(scales)
+
+specialty <- "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease"
+
+# zip_table originally from https://gist.githubusercontent.com/erichurst/7882666/raw/5bdc46db47d9515269ab12ed6fb2850377fd869e/US%2520Zip%2520Codes%2520from%25202013%2520Government%2520Data
+# 
+zip_table <- read_csv("data_added/zip_table.csv")
+
+# mapping - county name is in NAMELSAD column
+county_sf <- tigris::counties()
+
+### Read back in data from csv, convert to data.table
+
+ds_full <- fread("dataset_full.csv")
+```
+
+## Test data.table for analysis
+
+## Total pharma spend on pulmonary by year
+
+1. Did this slow down during the Sunshine Act Era? Did Naming and Shaming Work?
+
+2. What was the Effect of COVID?
+
+First as a table, then as a plot.
+```{r}
+#  totals over 2013-2021, top 50
+ds_full[ ,  .(total_usd = sum(Total_Amount_of_Payment_USDollars)),
+    by = .(Program_Year)] %>% 
+  tibble() ->  
+pulm_annual_spend
+
+# make pretty table
+pulm_annual_spend %>% 
+  gt() %>% 
+  cols_label(Program_Year= "Year",
+             total_usd = "Dollars") %>% 
+  gt::tab_header(title = "Open Payments, Annual Pharma Spend on Pulmonary",
+    subtitle = "2013-2021") %>% 
+  gt::fmt_number(columns = total_usd, decimals = 2, use_seps = TRUE)
+
+# make plot
+pulm_annual_spend %>% 
+  ggplot(aes(x = Program_Year, y = total_usd)) +
+  geom_point(color= 'red', size = 3) +
+  geom_line() +
+  scale_x_continuous(breaks = c(2013,2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021)) +
+  scale_y_continuous(labels = label_number(suffix = " M", scale = 1e-6)) +
+  labs(x = 'Year' , y = 'US Dollars Paid',
+       title = "Total Cumulative Paid to Pulmonologists by Pharma by Year",
+       subtitle = "Millions of US Dollars",
+       caption = "As Reported on CMS Open Payments")
+```
+
+While 2013 and 2014 may represent incomplete reporting, it appears that the overall trend was steady growth despite the Sunshine Act. This changed in 2020, when COVID had a much larger effect than the Sunshine Act, reducing pharma transfers by more than 50%, with a partial rebound in 2021.
+
+### Data.table translation help
+https://atrebas.github.io/post/2019-03-03-datatable-dplyr/#read-write-data 
+
+## Total pharma spend on pulmonary by year by Category of General Spend (Nature of Payment field)
+
+Perhaps some areas went down, like Food and Beverage, or Entertainment, in response to the Sunshine Act, even if overall spend went up.
+
+one table, two graphs with different scales
+
+```{r}
+#  totals over 2013-2021, top 50
+ds_full[ ,  .(total_usd = sum(Total_Amount_of_Payment_USDollars)),
+    by = .(Program_Year, Nature_of_Payment_or_Transfer_of_Value)][order(Nature_of_Payment_or_Transfer_of_Value, Program_Year)] %>% 
+  tibble() ->  
+pulm_annual_cat_spend
+
+# make pretty table
+pulm_annual_cat_spend %>% 
+  gt() %>% 
+  cols_label(Program_Year= "Year",
+             Nature_of_Payment_or_Transfer_of_Value = "Category",
+             total_usd = "Dollars") %>% 
+  gt::tab_header(title = "Open Payments, Annual Pharma Spend on Pulmonary",
+    subtitle = "by Category, 2013-2021") %>% 
+  gt::fmt_number(columns = total_usd, decimals = 2, use_seps = TRUE)
+```
+
+
+### Now a plot of the big money
+
+```{r}
+# make plot - big spend first
+pulm_annual_cat_spend %>% 
+  filter(Nature_of_Payment_or_Transfer_of_Value %in% c("Compensation for services other than consulting, including serving as faculty or as a speaker at a venue other than a continuing education program", "Consulting Fee", "Food and Beverage", "Travel and Lodging", "Royalty or License")) %>% 
+  ggplot(aes(x = Program_Year, y = total_usd, group = Nature_of_Payment_or_Transfer_of_Value)) +
+  geom_point(aes(color= Nature_of_Payment_or_Transfer_of_Value), size = 3) +
+  geom_line() +
+  scale_x_continuous(breaks = c(2013,2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021)) +
+  scale_y_continuous(labels = label_number(suffix = "M", scale = 1e-6)) +
+  labs(x = 'Year' , y = 'US Dollars Paid',
+       title = "Total Paid by Payment Category to Pulmonologists by Pharma by Year",
+       subtitle = "Millions of US Dollars",
+       caption = "As Reported on CMS Open Payments") +
+  theme(legend.position = "bottom") +
+  guides(col = guide_legend(ncol = 1))
+```
+
+
+### Now a plot of the small money
+
+```{r}
+# make plot - small spend 2nd
+pulm_annual_cat_spend %>% 
+  filter(Nature_of_Payment_or_Transfer_of_Value %in% c("Current or prospective ownership or investment interest", "Compensation for serving as faculty or as a speaker for a non-accredited and noncertified continuing education program", "Compensation for serving as faculty or as a speaker for a medical education program", "Charitable Contribution", "Education", "Entertainment", "Gift", "Grant")) %>% 
+  ggplot(aes(x = Program_Year, y = total_usd, group = Nature_of_Payment_or_Transfer_of_Value)) +
+  geom_point(aes(color= Nature_of_Payment_or_Transfer_of_Value), size = 3) +
+  geom_line() +
+  scale_x_continuous(breaks = c(2013,2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021)) +
+  scale_y_continuous(labels = label_number(suffix = "K", scale = 1e-3)) +
+  labs(x = 'Year' , y = 'US Dollars Paid',
+       title = "Total Paid by Payment Category to Pulmonologists by Pharma by Year - Smaller Potatoes",
+       subtitle = "Millions of US Dollars",
+       caption = "As Reported on CMS Open Payments") +
+  theme(legend.position = "bottom") +
+  guides(col = guide_legend(ncol = 1))
+```
+
+Random non-CME speaking went up until COVID, consulting fees steadily up, Food & Bev up, with less COVID effect, while travel and royalties were severely affected by COVID. No clear effect of the Sunshine Act on Big-Ticket items.
+
+For the smaller potatoe, Education went up steadily, even with COVID. Compensation for fake CME went down over time, grants slowly upward, and ownership was largely flat except for a 2018 spike. Gifts wmay have also gone down over time.
+
+
+## Which Companies are spending the most, and on which products?
+
+Top Drug Spend by Drug, Overall
+
+```{r}
+#  totals over 2013-2021, top 50
+ds_full[ ,  .(total_usd = sum(Total_Amount_of_Payment_USDollars)),
+    by = .(Name_of_Drug_or_Biological_or_Device_or_Medical_Supply_1)][order(-total_usd)] %>% 
+  tibble() %>% 
+  filter(Name_of_Drug_or_Biological_or_Device_or_Medical_Supply_1 != "") ->  
+pharma_spend_per_drug
+
+# make pretty table
+pharma_spend_per_drug %>% 
+  filter(total_usd > 1000000) %>% 
+  gt() %>% 
+  cols_label(Name_of_Drug_or_Biological_or_Device_or_Medical_Supply_1 = "Product",
+        total_usd = "Dollars") %>% 
+  gt::tab_header(title = "Open Payments, Total Pharma Spend on Pulmonary",
+    subtitle = "by Product, 2013-2021") %>% 
+  gt::fmt_number(columns = total_usd, decimals = 2, use_seps = TRUE)
+```
+
+Top Table first, limited to a total of >=1M from 2013-2021
+
+```{r}
+#  totals over 2013-2021, top 50
+ds_full[ ,  .(total_usd = sum(Total_Amount_of_Payment_USDollars)),
+    by = .(Submitting_Applicable_Manufacturer_or_Applicable_GPO_Name, Name_of_Drug_or_Biological_or_Device_or_Medical_Supply_1)][order(-total_usd)] %>% 
+  tibble() ->  
+pharma_spend_by_drug
+
+# make pretty table
+pharma_spend_by_drug %>% 
+  filter(total_usd > 1000000) %>% 
+  gt() %>% 
+  cols_label(Submitting_Applicable_Manufacturer_or_Applicable_GPO_Name = "PharmaCo",
+     Name_of_Drug_or_Biological_or_Device_or_Medical_Supply_1 = "Product",
+        total_usd = "Dollars") %>% 
+  gt::tab_header(title = "Open Payments, Total Pharma Spend on Pulmonary",
+    subtitle = "by Product, 2013-2021") %>% 
+  gt::fmt_number(columns = total_usd, decimals = 2, use_seps = TRUE)
+```
+
+## Total Spend by Company by Year
+
+```{r}
+#  totals over 2013-2021, top 50
+ds_full[ ,  .(total_usd = sum(Total_Amount_of_Payment_USDollars)),
+    by = .(Submitting_Applicable_Manufacturer_or_Applicable_GPO_Name, Program_Year)][order(Submitting_Applicable_Manufacturer_or_Applicable_GPO_Name, Program_Year)] %>% 
+  tibble() %>% 
+  filter(total_usd > 1000000) %>% arrange(-total_usd)->  
+pharma_spend_by_year
+```
+## distinct companies over 1M in one year
+Then a table of these
+
+```{r}
+pharma_spend_by_year %>% 
+  distinct(Submitting_Applicable_Manufacturer_or_Applicable_GPO_Name) %>% 
+  pull() ->
+top_17_pharma
+
+#pull top 17 companies that broke 1M at least once
+ds_full[ Submitting_Applicable_Manufacturer_or_Applicable_GPO_Name %in% top_17_pharma,  .(total_usd = sum(Total_Amount_of_Payment_USDollars)),
+    by = .(Submitting_Applicable_Manufacturer_or_Applicable_GPO_Name, Program_Year)][order(Submitting_Applicable_Manufacturer_or_Applicable_GPO_Name, Program_Year)] ->
+  top17_pharma_spend_annual
+
+# tablulate these by year
+top17_pharma_spend_annual %>% 
+  gt() %>% 
+  cols_label(Submitting_Applicable_Manufacturer_or_Applicable_GPO_Name = "PharmaCo",
+     Program_Year = "Year",
+        total_usd = "Dollars") %>% 
+  gt::tab_header(title = "Open Payments, Big Pharma Spend on Pulmonary",
+    subtitle = "by Company and Year, 2013-2021") %>% 
+  gt::fmt_number(columns = total_usd, decimals = 2, use_seps = TRUE)
+```
+
+
+### Now a plot of the spend by the big 17
+
+```{r}
+# now a plot
+top17_pharma_spend_annual %>% 
+  ggplot(aes(x = Program_Year, y = total_usd, group = Submitting_Applicable_Manufacturer_or_Applicable_GPO_Name)) +
+  geom_point(aes(color = Submitting_Applicable_Manufacturer_or_Applicable_GPO_Name), size = 3) +
+  geom_line() +
+  scale_x_continuous(breaks = c(2013,2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021)) +
+  scale_y_continuous(labels = label_number(suffix = "M", scale = 1e-6)) +
+  labs(x = 'Year' , y = 'US Dollars Paid',
+       title = "Total Paid by PharmaCos to Pulmonologists by Year",
+       subtitle = "Millions of US Dollars",
+       caption = "As Reported on CMS Open Payments") +
+  theme(legend.position = "right") +
+  guides(col = guide_legend(ncol = 1))
+```
+
+## Further Analysis
+
+- how many payments to docs per year by company
+- payments by doc within a company - histogram - KOL strategy?
+
+## Now Top Individual Recipients
+
+Not counting Royalties
+
+```{r}
+#  totals over 2013-2021, top 50
+ds_full[Nature_of_Payment_or_Transfer_of_Value != "Royalty or License", ][ ,  .(total_usd = sum(Total_Amount_of_Payment_USDollars)),
+    by = .(Physician_First_Name, Physician_Last_Name)][order(Physician_First_Name, Physician_Last_Name)] %>% 
+  tibble() %>% 
+  filter(total_usd > 1000000) %>% arrange(-total_usd)->  
+docs_by_year
+```
+
+573 docs over 100K from 2013-2021
+88 over 500K
+23 over 1M
+
+Table of Top 23
+
+```{r}
+docs_by_year %>% 
+  gt() %>% 
+  cols_label(Physician_First_Name =  "First Name",
+     Physician_Last_Name = "Last Name",
+        total_usd = "Dollars") %>% 
+  gt::tab_header(title = "Open Payments, Big Pharma Spend on Pulmonary",
+    subtitle = "by Doctor, 2013-2021") %>% 
+  gt::fmt_number(columns = total_usd, decimals = 2, use_seps = TRUE)
+```
+
+Of note, only one female
+
+High number (over-representative) raised, educated outside the US on the top list?
+
+What is the denominator - how many pulmonary docs in US, how many foreign-born, foreign-educated?
+
+Academic vs non-academic?
+
+Religious hospitals vs secular?
+
+## Top by Royalty or License
+
+Anyone over 10K
+```{r}
+#  totals over 2013-2021, top 50
+ds_full[Nature_of_Payment_or_Transfer_of_Value == "Royalty or License", ][ ,  .(total_usd = sum(Total_Amount_of_Payment_USDollars)),
+    by = .(Physician_First_Name, Physician_Last_Name)][order(Physician_First_Name, Physician_Last_Name)] %>% 
+  tibble() %>% 
+  filter(total_usd > 10000) %>% arrange(-total_usd)->  
+docs_by_roy
+```
+
+Total of only 7 docs in 2013-2021.
+ Lots for Lyntek Corp based on sepsis patents.
+http://lyntekmedical.com 
+
+Table
+```{r}
+docs_by_roy %>% 
+  gt() %>% 
+  cols_label(Physician_First_Name =  "First Name",
+     Physician_Last_Name = "Last Name",
+        total_usd = "Dollars") %>% 
+  gt::tab_header(title = "Open Payments, Big Pharma Spend on Pulmonary",
+    subtitle = "Royalties by Doctor, 2013-2021, Total > $10K") %>% 
+  gt::fmt_number(columns = total_usd, decimals = 2, use_seps = TRUE)
+```
+
+## Top Recipients from Top Companies
+Which of the Top 17 Companies are spending the most on specific docs?
+
+
+```{r}
+#  totals over 2013-2021
+library(dtplyr)
+ds_full %>% 
+  filter(Nature_of_Payment_or_Transfer_of_Value != "Royalty or License") %>% 
+  filter(Submitting_Applicable_Manufacturer_or_Applicable_GPO_Name %in% top_17_pharma) %>% 
+  group_by(Submitting_Applicable_Manufacturer_or_Applicable_GPO_Name, Physician_First_Name, Physician_Last_Name) %>% 
+  summarise(total_usd = sum(Total_Amount_of_Payment_USDollars)) %>% 
+  arrange(Submitting_Applicable_Manufacturer_or_Applicable_GPO_Name, -total_usd) %>% 
+  filter(total_usd > 100000) ->  
+docs_per_co
+
+docs_per_co %>% 
+    gt() %>% 
+  cols_label(Submitting_Applicable_Manufacturer_or_Applicable_GPO_Name = "PharmaCo",
+             Physician_First_Name =  "First Name",
+     Physician_Last_Name = "Last Name",
+        total_usd = "Dollars") %>% 
+  gt::tab_header(title = "Open Payments, Big Pharma Spend on Pulmonary",
+    subtitle = "Royalties by Doctor, 2013-2021, Total > $100K") %>% 
+  gt::fmt_number(columns = total_usd, decimals = 2, use_seps = TRUE)
+```
+
+## Top Recipients by Drug from Top Companies
+Which of the Top 17 Companies are spending the most on specific docs for Specific Drugs?
+
+Aka, Who is Team Symbicort vs Team Trelegy?
+
+```{r}
+#  totals over 2013-2021
+library(dtplyr)
+ds_full %>% 
+  filter(Nature_of_Payment_or_Transfer_of_Value != "Royalty or License") %>% 
+  filter(Submitting_Applicable_Manufacturer_or_Applicable_GPO_Name %in% top_17_pharma) %>% 
+  group_by(Submitting_Applicable_Manufacturer_or_Applicable_GPO_Name, Name_of_Drug_or_Biological_or_Device_or_Medical_Supply_1, Physician_First_Name, Physician_Last_Name) %>% 
+  summarise(total_usd = sum(Total_Amount_of_Payment_USDollars)) %>% 
+  arrange(Submitting_Applicable_Manufacturer_or_Applicable_GPO_Name, Name_of_Drug_or_Biological_or_Device_or_Medical_Supply_1, -total_usd) %>% 
+  filter(total_usd > 50000) ->  
+docs_per_drug
+
+docs_per_drug %>% 
+    gt() %>% 
+  cols_label(Submitting_Applicable_Manufacturer_or_Applicable_GPO_Name = "PharmaCo",
+             Name_of_Drug_or_Biological_or_Device_or_Medical_Supply_1 = "Drug",
+             Physician_First_Name =  "First Name",
+     Physician_Last_Name = "Last Name",
+        total_usd = "Dollars") %>% 
+  gt::tab_header(title = "Open Payments, Big Pharma Spend on Pulmonary",
+    subtitle = "Royalties by Doctor, 2013-2021, Total > $100K") %>% 
+  gt::fmt_number(columns = total_usd, decimals = 2, use_seps = TRUE)
+```
+
+
+## Who are the Hungry Hippos - most Food and Beverage $$
+
+```{r}
+#  totals over 2013-2021
+library(dtplyr)
+ds_full %>% 
+  filter(Nature_of_Payment_or_Transfer_of_Value == "Food and Beverage") %>% 
+  group_by(Physician_First_Name, Physician_Last_Name) %>% 
+  summarise(total_usd = sum(Total_Amount_of_Payment_USDollars)) %>% 
+  filter(total_usd > 20000) %>% 
+    arrange(-total_usd) ->  
+food_doc_dollars
+
+food_doc_dollars %>% 
+  mutate(Name = paste(Physician_First_Name, Physician_Last_Name)) %>% 
+  ungroup() %>% 
+  select(Name, total_usd) %>% 
+    gt() %>% 
+  cols_label(total_usd = "Dollars") %>% 
+  gt::tab_header(title = "Who Are The Hungriest Hippos in Pulmonary",
+    subtitle = "Food and Beverage by Doctor, 2013-2021, Total > $20K, N = 186") %>% 
+  gt::fmt_number(columns = total_usd, decimals = 2, use_seps = TRUE)
+```
+
+
+## Who Never Eats At Home - most Food and Beverage Payments
+
+```{r}
+#  totals over 2013-2021
+library(dtplyr)
+ds_full %>% 
+  filter(Nature_of_Payment_or_Transfer_of_Value == "Food and Beverage") %>% 
+  count(Physician_First_Name, Physician_Last_Name) %>% 
+  filter(n > 900) %>% 
+    arrange(-n) ->  
+food_doc_meals
+
+food_doc_meals %>% 
+  mutate(Name = paste(Physician_First_Name, Physician_Last_Name)) %>% 
+  ungroup() %>% 
+  select(Name, n) %>% 
+    gt() %>% 
+  cols_label(n = "Meals") %>% 
+  gt::tab_header(title = "Which Pulmonary Docs Never Eat At Home",
+    subtitle = "Food and Beverage by Doctor, 2013-2021, N = 234\n More than 100 meals out per year - only 208 weeknights per year available to eat dinner out over 9 years - 9*208") 
+```

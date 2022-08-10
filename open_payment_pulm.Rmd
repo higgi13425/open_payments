@@ -576,6 +576,7 @@ Rising every year 2016-2019,
 dropped >50% in 2020, then rose again in 2021
 
 ```{r}
+tictoc::tic()
 ds_all %>% 
   filter(Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease") |> 
   group_by(Program_Year) |>
@@ -590,6 +591,7 @@ ds_all %>%
     subtitle = "Pulmonary 2016-2021") %>% 
   gt::fmt_number(columns = total_usd, decimals = 2, use_seps = TRUE) %>% 
   gt::gtsave("pmt_by_year.html")
+tictoc::toc()
 ```
 
 Top Ten Companies overall spend 2016-2021
@@ -617,6 +619,7 @@ ds_all %>%
 Top Ten companies by year
 
 ```{r}
+tictoc::tic()
 ds_all %>% 
   filter(Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Pulmonary Disease") |> 
   group_by(Program_Year, Applicable_Manufacturer_or_Applicable_GPO_Making_Payment_Name) |>
@@ -635,7 +638,36 @@ ds_all %>%
     subtitle = "Pulmonary 2016-2021") %>% 
   gt::fmt_number(columns = total_usd, decimals = 2, use_seps = TRUE) %>% 
   gt::gtsave("company_usd_by_year.html")
+tictoc::toc()
 ```
+
+
+GI top Ten Earners overall
+
+```{r}
+tictoc::tic()
+ds_all %>% 
+  filter(Physician_Specialty == "Allopathic & Osteopathic Physicians|Internal Medicine|Gastroenterology") |> 
+  select(Physician_First_Name, Physician_Last_Name, Total_Amount_of_Payment_USDollars) %>% 
+  group_by(Physician_First_Name, Physician_Last_Name) |>
+  summarize(
+  total_usd = sum(Total_Amount_of_Payment_USDollars)) %>% 
+  arrange(-total_usd) %>% 
+  mutate(name = paste(Physician_First_Name, Physician_Last_Name)) %>% 
+  ungroup() %>% 
+  select(name, total_usd) %>% 
+  slice_max(n = 12, order_by = total_usd) %>%
+  collect() %>% 
+  gt::gt() %>% 
+  cols_label(name= "Name",
+             total_usd = "Dollars") %>% 
+  gt::tab_header(title = "Open Payments, Top 12 GI Payees Overall",
+    subtitle = "GI 2016-2021, > $1.25 M Over 6 Years") %>% 
+  gt::fmt_number(columns = total_usd, decimals = 2, use_seps = TRUE) %>% 
+  gt::gtsave("gi_top.html")
+tictoc::toc()
+```
+
 
 try with vroom - crashes - can load, but can't handle all the data in RAM
 
